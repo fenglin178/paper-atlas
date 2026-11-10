@@ -46,7 +46,7 @@
 </main>
 <footer class="wrap"><a href="../index.html#library">← 返回论文索引</a> · <a href="2505.06708-full.md">原始 Markdown 正文</a> · Paper Atlas</footer>
 <script>
-(async function(){
+document.addEventListener("DOMContentLoaded",async function(){
  const el=document.getElementById('full-note');
  try{
    const response=await fetch('./2505.06708-full.md',{cache:'no-cache'});
@@ -94,5 +94,5 @@
  }catch(err){
    el.innerHTML='<p>无法自动读取正文：'+String(err.message).replaceAll('<','&lt;')+'。<a href="2505.06708-full.md">点击查看完整 Markdown 文档</a>。</p>';
  }
-})();
+});
 </script></body></html>
