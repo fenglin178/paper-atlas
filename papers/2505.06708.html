@@ -1,17 +1,98 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Gated Attention 中文精读：方法公式、架构消融、稀疏门控、Attention Sink、长上下文与审稿评价。"><title>Gated Attention · Paper Atlas</title><link rel="stylesheet" href="../style.css"></head><body>
-<header class="top"><a class="brand" href="../index.html">◈ PAPER ATLAS</a><nav><a href="../index.html#library">← 论文索引</a><a href="#references">论文来源</a></nav></header>
-<main class="wrap"><section class="article-head"><span class="overline">PAPER / ARCHITECTURE &amp; INTERPRETABILITY</span><h1>Gated Attention for Large Language Models: Non-linearity, Sparsity, and Attention-Sink-Free</h1><p class="lead">Softmax 决定从哪里读取信息；输出门控让当前 token 决定，这次读取的结果应该写入多少。一个很小的架构变化，连接起表达能力、训练稳定性与 Attention Sink。</p><p class="source">Zihan Qiu、Zekun Wang、Bo Zheng 等 · 首次提交 2025-05-10 · arXiv:2505.06708v1 · 中文精读整理于 2026-11-10</p><p><a class="button" href="https://arxiv.org/abs/2505.06708v1">原论文 ↗</a>　<a href="https://arxiv.org/pdf/2505.06708v1">PDF</a>　<a href="https://github.com/qiuzh20/gated_attention">官方代码</a></p></section>
-<div class="article-layout"><aside class="toc"><a href="#summary">阅读结论</a><a href="#problem">研究问题</a><a href="#prior">前人工作</a><a href="#method">核心方法与公式</a><a href="#design">实验设计</a><a href="#results">实验数据</a><a href="#mechanism">机制分析</a><a href="#context">长上下文</a><a href="#review">审稿评价</a><a href="#research">后续研究</a><a href="#references">来源</a></aside><article>
-<section id="summary"><h2>阅读结论与证据边界</h2><div class="callout"><strong>最值得保留的发现</strong><p>在每个头的 SDPA 输出之后、输出投影之前加入由当前输入生成的 sigmoid 乘法门控，能以较低开销改善模型表现。位置、头间独立性和允许门控接近零，都影响收益。</p></div><p>本文是大规模架构消融与机制分析研究。较充分的证据支持性能提升、训练更稳定及首 token 注意力显著下降；“减少 Sink 导致外推改善”仍是机制假说。以下“论文实测”“作者解释”“审稿推断”“待验证”分别标明证据性质。数值沿用 v1 的表号，不混入后续实现结果；示意图不代表真实模型激活。</p></section>
-<section id="problem"><h2>01 / Research Problem：Attention 还缺什么控制？</h2><p>对第 i 个 token、第 h 个头，因果注意力计算为：</p><div class="formula">aᵢⱼʰ = softmaxⱼ(qᵢʰ·kⱼʰ / √dₖ),　zᵢʰ = Σⱼ≤ᵢ aᵢⱼʰvⱼʰ</div><p>其中 q、k、v 分别是 Query、Key、Value，dₖ 是头维度；a 非负且每行和为 1。注意力解决了信息来源的相对分配，但没有独立的“本次少写入或不写入”变量。模型仍可通过 Value 抵消或输出投影间接完成抑制，因此不能说普通 Attention 绝对无法执行 no-op。</p><p>例如处理 “The capital of France is Paris” 时，某个头可以把读取集中于 France；但当前计算是否需要这个头提供的特征，是另一个自由度。门控把“从哪里读”与“读完后传递多少”分开。这是教学例子，并非论文中的语言学实验。</p><p>研究的价值还在于理解 Attention Sink：即使初始 token 没有明显语义作用，部分头仍持续给它高权重。已有研究提出，Softmax 必须分配完概率质量，模型可能借助一个相对无害的位置承接冗余权重。输出门控为抑制信息提供另一条路径，但这不是所有 Sink 的统一已证实成因。</p></section>
-<section id="prior"><h2>02 / Prior Work：贡献来自系统拆解</h2><p>LSTM、GRU 与 Highway Networks 已用门控管理信息流；SwiGLU 将其用于 Transformer FFN；状态空间模型和线性注意力也常使用门控。因此“把 Gate 加入神经网络”并非创新点。</p><div class="scroll"><table><thead><tr><th>前人工作</th><th>与本文关系</th><th>本文进一步追问</th></tr></thead><tbody><tr><td><a href="https://arxiv.org/abs/2306.12929">Quantizable Transformers</a></td><td>让头能够近似不做事，缓解异常值；已经研究门控注意力。</td><td>不同门控位置和形式，何者在大规模训练中更好？</td></tr><tr><td><a href="2309.17453.html">StreamingLLM</a></td><td>保留初始 KV，利用已有模型的 Sink 实现稳定流式推理。</td><td>从训练架构上改变信息控制，是否还会形成同样的 Sink？</td></tr><tr><td><a href="2410.10781.html">When Attention Sink Emerges</a></td><td>通过预训练干预研究归一化、Key Bias 与 Sink 形成。</td><td>标准 Softmax 保留时，输出门控如何改变 Sink？</td></tr><tr><td><a href="https://arxiv.org/abs/2503.02130">Forgetting Transformer</a></td><td>把遗忘门引入 Softmax 注意力。</td><td>聚合后的当前 Query 条件门控，与历史信息衰减有何不同？</td></tr></tbody></table></div><p><strong>审稿判断：</strong>本文的增量是将门控位置、粒度、头共享、加法/乘法和激活函数拆开对照，并连接到优化与可解释性。研究动机充分，但不能把所有门控收益归为首次发现。</p></section>
-<section id="method"><h2>03 / Method：输入、聚合、门控与输出</h2><p>输入 X∈ℝⁿˣᵈ 是 pre-norm 后的隐藏状态，n 为序列长度、d 为模型宽度。每个头分别形成 Q=XWQ、K=XWK、V=XWV，执行含因果遮蔽的 SDPA。最佳配置对应原文 §2.2、式 (5) 的 G₁：</p><div class="formula">gᵢʰ = σ(xᵢWGʰ),　ẑᵢʰ = zᵢʰ ⊙ gᵢʰ<br>oᵢ = Concat(ẑᵢ¹,…,ẑᵢᴴ)WO,　σ(t)=1/(1+e⁻ᵗ)</div><p>H 为 Query 头数；⊙ 为逐元素乘法。Elementwise 版本的 gᵢʰ∈(0,1)ᵈₖ，每头每维独立控制；Headwise 每头仅产生一个标量并广播到各维。Head-specific 表示不同头有各自门控，并不要求每个头拥有一个独立运行的网络。门控来自当前 xᵢ，不是直接把 Q 投影向量当成门控。</p><figure><strong>信息流示意（非测量结果）</strong><p class="formula">X → Q,K,V → Causal SDPA → z → ⊙ → Concat → WO<br>X → WG → sigmoid → g ↗</p><figcaption>残差连接在 Attention 子层外；图仅突出新增分支。G₁ 不改变单次前向传播中已经算出的 Softmax 权重。</figcaption></figure><p>G₁ 在聚合完成后由当前需求决定输出；G₂ 则给各历史位置的 Value 先加门控：</p><div class="formula">G₁: [Σⱼ aᵢⱼvⱼ] ⊙ σ(xᵢWG)<br>G₂: Σⱼ aᵢⱼ[vⱼ ⊙ σ(xⱼWG)]</div><p>G₂ 的选择随来源位置 j 变化，同一来源会被所有能看到它的 Query 复用；G₁ 随当前 i 变化。一般不能把两者交换。其余位置为 G₃：Key 投影后，G₄：Query 投影后，G₅：WO 后。对 Q/K 的门控改变匹配几何；G₅ 在多个头混合后才抑制输出。</p><h3>为什么作者强调两次线性映射之间的非线性？</h3><div class="formula">oᵢʰ = [Σⱼ aᵢⱼʰxⱼWVʰ]WOʰ = Σⱼ aᵢⱼʰxⱼ(WVʰWOʰ)<br>rank(WVʰWOʰ) ≤ dₖ</div><p>WVʰ∈ℝᵈˣᵈₖ，WOʰ∈ℝᵈₖˣᵈ 是输出矩阵中对应头的块。多个头经各自 WOʰ 后应<strong>求和</strong>，与先拼接后乘 WO 等价。固定注意力权重时，这条 Value 路径可以合并为固定的低秩映射；整个 Attention 仍因 Q/K 与 Softmax 而是输入依赖的非线性函数。</p><div class="formula">Dᵢʰ = diag(gᵢʰ),　oᵢʰ = Σⱼ aᵢⱼʰxⱼ WVʰDᵢʰWOʰ</div><p>门控引入随 xᵢ 变化的映射族；它没有突破每次条件化矩阵的 dₖ 秩上界。准确的解释是增加输入条件化的乘法交互，而不是“门控使低秩矩阵变成满秩”。GQA 中 Value 投影由一组 Query 头共享，头独立的输出门控仍可提供不同的控制。</p><figure><strong>交互教学示意：普通与非稀疏门控</strong><p class="caption">令单个维度的 SDPA 输出 z=2，调节门控 logit。仅为函数演示，不是模型的门控分布。</p><label for="gate-logit">Logit t：<output id="logit-value">−2</output></label><input id="gate-logit" type="range" min="-6" max="6" step="0.1" value="-2"><p id="gate-result" aria-live="polite"></p><noscript>普通门控 σ(−2)≈0.119，输出≈0.238；NS 门控≈0.560，输出≈1.119。启用 JavaScript 后可拖动演示。</noscript></figure></section>
-<section id="design"><h2>04 / Experimental Design：每组对照检验什么？</h2><p><strong>论文设置（§3.1）：</strong>15B 总参数、约 2.54B 激活参数的 MoE（128 experts、top-8、GQA）和 1.7B Dense；预训练上下文 4096，数据含多语言、数学与通识，总数据池 3.5T tokens。不是所有 30 余个变体都训练了 3.5T tokens：主要 MoE 架构消融用 400B，Dense 有 400B、1T 与 3.5T 等设置。</p><ol><li><strong>位置与预算：</strong>Table 1 同训练配置比较 G₁–G₅；增加 KV 头、Query 头或 expert 数作为额外参数对照，检验收益是否仅来自扩容。</li><li><strong>训练稳定性：</strong>Table 2 比较深度、学习率与 batch size；Dense 门控版本缩小 FFN，保持总参数一致。代价是同时改变 FFN 容量，不能把它当作其余架构完全不变的对照。</li><li><strong>非线性：</strong>Table 3 用每头 RMSNorm、仅 SiLU、加法门控等探测中间特征变换的价值。归一化同时改变尺度，不能单独识别表达能力效应。</li><li><strong>近零与输入依赖：</strong>Table 4 比较输入无关门控、共享门控及 NS-sigmoid；结合 Gate Score、首 token 权重与异常激活分析。</li><li><strong>长度迁移：</strong>Table 5 在继续长上下文训练后再用 YaRN 外推，区分训练范围内表现与位置编码变换后的鲁棒性。</li></ol><p>评估包括多领域 held-out PPL，以及 MMLU、GSM8K、HumanEval、HellaSwag、C-eval、CMMLU 等 few-shot 测试。PPL 越低越好，任务得分越高越好；不同表中的数据预算不同，不能跨表直接比较绝对 PPL。论文报告所测环境下门控 wall-time 增量小于 2%，这不是任意硬件、解码配置的性能保证。</p></section>
-<section id="results"><h2>05 / Results：位置与控制自由度决定收益</h2><p><strong>论文实测，Table 1：</strong>以下是 15B MoE、400B tokens 的关键行；Added Param 为百万参数，任务分数沿用原文。</p><div class="scroll"><table><thead><tr><th>方法</th><th>新增 M</th><th>PPL ↓</th><th>MMLU ↑</th><th>GSM8K ↑</th></tr></thead><tbody><tr><td>Baseline</td><td>0</td><td>6.026</td><td>58.79</td><td>52.92</td></tr><tr><td>KV heads: 4→8</td><td>50</td><td>5.979</td><td>59.78</td><td>52.16</td></tr><tr><td>Query heads: 32→48</td><td>201</td><td>5.953</td><td>58.45</td><td>53.30</td></tr><tr><td>增加 4 Experts</td><td>400</td><td>5.964</td><td>58.84</td><td>52.54</td></tr><tr><td>G₁ SDPA Elementwise</td><td>201</td><td>5.761</td><td>60.82</td><td>55.27</td></tr><tr><td>G₂ Value Elementwise</td><td>25</td><td>5.820</td><td>59.17</td><td>53.97</td></tr><tr><td>G₃ Key Elementwise</td><td>25</td><td>6.016</td><td>59.18</td><td>50.49</td></tr><tr><td>G₄ Query Elementwise</td><td>201</td><td>5.981</td><td>58.74</td><td>53.97</td></tr><tr><td>G₅ Dense Output</td><td>100</td><td>6.017</td><td>59.41</td><td>50.87</td></tr><tr><td>G₁ Headwise</td><td>1.6</td><td>5.792</td><td>60.05</td><td>54.44</td></tr></tbody></table></div><p>G₁ 相比基线 PPL 降低 0.265，MMLU 增加 2.03 个百分点；同样增加 201M 参数的 Query 扩容没有同等收益。Headwise 只增加约 1.6M 参数，仍接近 Elementwise，说明每头的整体写入强度是很有价值的自由度。不能据此认定逐元素控制无价值，也不能宣称每项任务都由 G₁ 最优。</p><h3>非线性消融（Table 3）</h3><div class="scroll"><table><thead><tr><th>方法</th><th>PPL ↓</th><th>解释边界</th></tr></thead><tbody><tr><td>Baseline</td><td>6.026</td><td>参照</td></tr><tr><td>SDPA sigmoid Gate</td><td>5.761</td><td>独立投影、乘法控制与尺度变化并存</td></tr><tr><td>Value sigmoid Gate</td><td>5.820</td><td>在聚合前控制来源</td></tr><tr><td>SDPA Additive SiLU Gate</td><td>5.821</td><td>加法与激活函数同时变化</td></tr><tr><td>SDPA 每头 RMSNorm</td><td>5.847</td><td>非线性归一化，也改变激活尺度</td></tr><tr><td>SDPA 仅 SiLU</td><td>5.975</td><td>仅插入激活有小幅收益</td></tr><tr><td>SDPA Additive Identity</td><td>5.882</td><td>额外线性分支也有收益</td></tr></tbody></table></div><p><strong>审稿推断：</strong>不能将所有收益都归于“增加非线性”：Identity 加法分支仍优于基线，而 RMSNorm 的尺度效应也无法排除。证据更稳妥地支持，Value 到输出之间的输入依赖变换值得设计，完整乘法门控提供了更多收益。</p><h3>稳定性与训练规模（Table 2）</h3><div class="scroll"><table><thead><tr><th>相同组内配置</th><th>Baseline PPL</th><th>G₁ PPL</th><th>补充观察</th></tr></thead><tbody><tr><td>28 层 / 400B / LR 0.004</td><td>7.499</td><td>7.404</td><td>总参数同为 1.7B</td></tr><tr><td>28 层 / 3.5T / LR 0.0045</td><td>6.180</td><td>6.130</td><td>HumanEval 34.15→37.80</td></tr><tr><td>48 层 / 400B / LR 0.008</td><td>9.195</td><td>7.325</td><td>Sandwich Norm 基线为 7.407</td></tr><tr><td>48 层 / 1T / batch 4096 / LR 0.008</td><td>训练发散</td><td>7.078</td><td>同组低 LR 0.0053 基线为 7.363</td></tr></tbody></table></div><p>结合 Figure 1 的训练曲线，这支持门控扩大稳定训练的配置范围；不能表述为任何规模都不再出现 loss spike。Sandwich Norm 能恢复部分稳定性而收益有限，也提示数值稳定与模型能力并非同一个因素。</p></section>
-<section id="mechanism"><h2>06 / Mechanism：近零门控、异常激活与 Sink</h2><p><strong>论文实测，Table 4：</strong>Gate Score 是跨层平均门控；M-Act 是论文定义的跨层隐藏状态最大激活汇总指标；F-Attn 为首 token 注意力权重。它与本站另一篇论文按阈值计数的 Sink Head 比例不是同一指标。</p><div class="scroll"><table><thead><tr><th>方法</th><th>Gate Score</th><th>M-Act</th><th>F-Attn</th><th>PPL</th></tr></thead><tbody><tr><td>Baseline</td><td>—</td><td>1053</td><td>0.467</td><td>6.026</td></tr><tr><td>SDPA Elementwise</td><td>0.116</td><td>94</td><td>0.048</td><td>5.761</td></tr><tr><td>SDPA Headwise</td><td>0.172</td><td>98</td><td>0.073</td><td>5.792</td></tr><tr><td>SDPA Head-shared</td><td>0.271</td><td>286</td><td>0.301</td><td>5.801</td></tr><tr><td>Value Elementwise</td><td>0.221</td><td>125</td><td>0.297</td><td>5.820</td></tr><tr><td>Input Independent</td><td>0.335</td><td>471</td><td>0.364</td><td>5.917</td></tr><tr><td>NS-sigmoid</td><td>0.653</td><td>892</td><td>0.451</td><td>5.900</td></tr></tbody></table></div><figure><strong>首 token 平均注意力（Table 4 实测）</strong><div class="bar-row"><span>Baseline</span><div class="bar-track"><div class="bar-fill" style="width:46.7%"></div></div><span>46.7%</span></div><div class="bar-row"><span>SDPA Elementwise</span><div class="bar-track"><div class="bar-fill" style="width:4.8%"></div></div><span>4.8%</span></div><figcaption>轨道完整长度为 100%。下降的是训练后 Softmax 权重本身，并非把权重乘 Gate 后重新统计。</figcaption></figure><h3>“稀疏”应当怎样理解？</h3><p>Figure 3 显示 G₁ 的分数大量集中在零附近；平均分数 0.116 本身不能充分描述分布。有限实数输入的 sigmoid 不产生严格零，这里主要是近似数值稀疏，不是 Top-K 跳算。门控在 SDPA 之后执行，不自动降低全注意力的二次计算复杂度。</p><div class="formula">NS-sigmoid(t) = 0.5 + 0.5σ(t) ∈ (0.5,1)</div><p>NS 版本保留非线性却不允许近零门控，PPL 从 5.761 变为 5.900，F-Attn 回到 0.451。这提供了支持“强抑制有价值”的干预证据，但激活均值、输出尺度和导数也一起改变，尚未完全隔离稀疏性。</p><p>输入无关的固定可学习门控弱于输入依赖门控。需要纠正一种容易出现的解释：虽然参数通过 sigmoid 生成，固定门控对激活 z 仍是线性缩放，可吸收到相邻投影，不能简单说它在输入函数中新增了非线性。其收益也可能来自重参数化和优化路径。</p><h3>为什么 Gate 会改变在它之前计算的注意力图？</h3><p><strong>作者解释：</strong>当前 Query 依赖、头独立的近零门控能过滤无关上下文，减少依赖 Sink 承接冗余权重的需求。<strong>审稿推断：</strong>这是重新训练后的适应性变化；梯度同时改变 Q、K、V、WO 与 Gate。固定 Q/K 做一次前向传播时，G₁ 不会反过来修改刚刚算出的 a。不要把训练结果解释为 Gate 在推理中直接删除了首列权重。</p><p>Value Gate 将 M-Act 从 1053 降到 125，F-Attn 却仍为 0.297；共享 Gate 也有类似分离。这反驳了“压低异常激活就一定移除 Sink”的简单充分性叙述。作者认为巨大激活不是 Sink 的先决条件；更严格的判断还需说明异常激活阈值与逐层、逐头分布，这些汇总数值不能证明两种现象完全独立。</p><p>作者进一步推测，较小异常激活可能减少 BF16 数值误差并提升稳定性。这是合理机制线索，尚不能等同于对数值误差、梯度和 loss spike 之间完整因果链的证明。“Attention-Sink-Free”也应理解为所测配置中显著消退，而不是对任意输入、每个头零首位置权重的保证。</p></section>
-<section id="context"><h2>07 / 长上下文：优势主要出现在 YaRN 扩展之后</h2><p>§4.4 从训练 3.5T tokens 的模型出发，将 RoPE base 从 10k 改为 1M，以 32k 序列继续训练 80B tokens；之后用 YaRN 扩展至 128k。以下是 RULER 得分（Table 5），不是纯粹从 4k 零训练外推到 128k。</p><div class="scroll"><table><thead><tr><th>长度</th><th>扩展前 Baseline</th><th>扩展前 Gate</th><th>YaRN Baseline</th><th>YaRN Gate</th></tr></thead><tbody><tr><td>4k</td><td>88.89</td><td>90.56</td><td>82.90</td><td>88.13</td></tr><tr><td>8k</td><td>85.88</td><td>87.11</td><td>71.52</td><td>80.01</td></tr><tr><td>16k</td><td>83.15</td><td>84.61</td><td>61.23</td><td>76.74</td></tr><tr><td>32k</td><td>79.50</td><td>79.77</td><td>37.94</td><td>72.88</td></tr><tr><td>64k</td><td>—</td><td>—</td><td>37.51</td><td>66.60</td></tr><tr><td>128k</td><td>—</td><td>—</td><td>31.65</td><td>58.82</td></tr></tbody></table></div><p>在原有 32k 范围末端，两模型只有 0.27 分差距；YaRN 后同一长度差距为 34.94 分，128k 差距为 27.17 分。更精确的结论是：这套训练与扩展方案下，门控模型对长度扩展及位置编码变化更鲁棒，而不是 Sink 在训练长度内必然损害能力。</p><p><strong>作者假说：</strong>基线更依赖 Sink 调节注意力分布，RoPE 变化后这一策略难以适应。<strong>仍待验证：</strong>优势也可能来自更好的表示、输出尺度、训练稳定性或头间学习分工；仅有同步改善不能判定 Sink 减少是长上下文提升的直接原因。</p></section>
-<section id="review"><h2>08 / Reviewer Assessment</h2><div class="scroll"><table><thead><tr><th>结论</th><th>证据判断</th><th>尚缺什么</th></tr></thead><tbody><tr><td>SDPA 输出门控改善性能</td><td>较强：多位置、预算、Dense/MoE 对照</td><td>更多尺度、训练体系与多随机种子复现</td></tr><tr><td>稳定训练范围扩大</td><td>较强：深度、LR、batch 与 loss 曲线</td><td>失败率统计和数值精度控制</td></tr><tr><td>非线性与近零控制发挥作用</td><td>中等：消融方向一致</td><td>尺度、梯度和参数预算严格匹配</td></tr><tr><td>门控训练显著减少 Sink</td><td>较强：直接注意力测量</td><td>分层分头、跨任务及不同长度分布</td></tr><tr><td>Sink 减少导致外推提升</td><td>尚不充分：相关证据为主</td><td>独立改变 Sink 的因果干预</td></tr></tbody></table></div><p>主要贡献是可直接复用的架构选择和规模较大的系统消融。主要限制是机制因素耦合：位置同时改变信息条件性，NS-sigmoid 同时改变梯度与尺度，Dense 配平参数同时改变 FFN。表格未给出足以判断所有小差异显著性的重复试验区间，因此不能把每个小数点差异都解释成稳定规律。</p><p>注意力权重也不等价于实际功能贡献。要研究第 j 个 token 对当前输出的作用，应至少考虑 cᵢⱼʰ=(aᵢⱼʰvⱼʰ⊙gᵢʰ)WOʰ，再通过后续网络的干预验证；即使该向量范数很小，也不能直接推断最终任务影响为零。</p></section>
-<section id="research"><h2>09 / 后续研究：从相关性走向功能与因果</h2><ol><li><strong>隔离稀疏性：</strong>比较均值与二阶矩匹配的连续门控、阈值门控和密集缩放；同步记录梯度、残差范数、PPL 与异常激活。若近零占比在尺度匹配后仍解释收益，才更接近独立机制证据。</li><li><strong>验证 Query 依赖：</strong>把 gᵢ 换成同层其他 token 的 Gate、跨样本打乱或均值 Gate，并匹配输出尺度；比较损失上升与特定任务退化。区分信息选择与普通幅度正则化。</li><li><strong>干预 Sink 与外推：</strong>在门控/无门控两种架构中，分别加入虚拟 Key、零 Value 或其他 Sink 干预；使用相同 RoPE/YaRN 与训练预算。检验独立压低 Sink 后，长上下文收益是否仍出现。</li><li><strong>分离激活与精度：</strong>在受控小规模中比较 BF16/FP32，并记录逐层最大值、梯度峰值和 loss spike，测试稳定性收益是否主要由精度敏感性解释。</li><li><strong>注意力头冗余：</strong>分别聚类 Attention Pattern、Gate Pattern、门控后 WO 投影输出；做单头与成组消融、Activation Patching，测 ΔNLL、任务得分与头间交互。相似 Sink 图不自动等于功能冗余；低平均 Gate 也不等于该头可安全永久剪除。</li><li><strong>报告真实部署成本：</strong>测预填充、逐 token 解码、不同 batch 的延迟和显存；若要借近零门控跳算，应另设计提前预测与硬门机制。原论文的输出数值稀疏不能直接变成算力节省。</li></ol><p>最有信息量的后续结果将是：在控制尺度和优化后，Gate 的输入依赖选择仍能解释独立收益；以及独立改变 Sink 能否复现或消除外推优势。两者分别检验表达机制与长上下文的因果机制。</p></section>
-<section id="references"><h2>来源与可追溯性</h2><div class="linklist"><a href="https://arxiv.org/abs/2505.06708v1">Qiu et al. · arXiv:2505.06708v1 · 2025-05-10</a><a href="https://arxiv.org/html/2505.06708v1#S2">§2：架构与式 (1)–(5)</a><a href="https://arxiv.org/html/2505.06708v1#S3">§3：训练设置、Table 1–2</a><a href="https://arxiv.org/html/2505.06708v1#S4">§4：式 (6)–(8)、Table 3–5、Figure 2–3</a><a href="https://github.com/qiuzh20/gated_attention">作者官方实现与可视化</a><a href="https://huggingface.co/QwQZh/gated_attention">作者发布的模型资源</a></div><p class="caption">沿用原会话的中文精读主线，核对 v1 原文后整理。数表为关键行摘录与重排；表号均指 v1。Table 1 与 Table 4 的 Value Gate GSM8K 存在不同数值，本页该任务仅转录 Table 1，未自行修正原文。原文对输入无关门控非线性的解释在本文另作数学辨析。教学互动使用指定常数，不能作为实验测量。</p></section>
-</article></div></main><footer class="wrap"><a href="../index.html#library">← 返回论文索引</a> · Paper Atlas</footer><script src="gated-attention.js"></script></body></html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Gated Attention for Large Language Models 原会话完整中文精读笔记：研究问题、机制推导、原始实验结果、审稿评价与后续研究。">
+<title>Gated Attention · 完整论文精读 · Paper Atlas</title>
+<link rel="stylesheet" href="../style.css">
+<style>
+.full-note{max-width:920px;margin:0 auto;padding:22px 0 80px;line-height:1.85}
+.full-note h1{font-size:clamp(1.6rem,3.5vw,2.5rem);line-height:1.25}
+.full-note h2{margin:3.3rem 0 1.1rem;scroll-margin-top:90px}
+.full-note h3{margin:2.1rem 0 .7rem}
+.full-note h4{margin:1.7rem 0 .6rem}
+.full-note p{margin:1rem 0}
+.full-note table{width:100%;border-collapse:collapse;min-width:550px}
+.full-note th,.full-note td{padding:10px 13px;text-align:left;border-bottom:1px solid #8885}
+.full-note th{font-weight:700}
+.full-note .table-scroll{overflow-x:auto;margin:1.5rem 0}
+.full-note blockquote{border-left:3px solid #5a9ab5;padding:.3rem 1.2rem;margin:1.4rem 0;background:#7894ad12}
+.full-note li{margin:.45rem 0}
+.full-note .MathJax{overflow-x:auto;max-width:100%}
+.full-note pre{white-space:pre-wrap;overflow-x:auto}
+.note-nav{display:flex;flex-wrap:wrap;gap:10px;margin:25px 0}
+.note-nav a{border:1px solid #8885;border-radius:30px;padding:6px 12px;font-size:.86rem}
+.status-note{margin:20px auto;max-width:920px;color:var(--muted,#888)}
+.demo{border:1px solid #8885;border-radius:14px;padding:16px 20px;margin:1.5rem 0}
+.demo output{font-variant-numeric:tabular-nums}
+.demo input{width:100%;accent-color:#269b87}
+.demo-bars{display:grid;grid-template-columns:85px 1fr 65px;gap:8px;align-items:center;margin:9px 0}
+.demo-track{height:11px;background:#8883;border-radius:8px;overflow:hidden}
+.demo-fill{height:100%;background:#269b87}
+</style>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]'],['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script>
+<script defer src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head><body>
+<header class="top"><a class="brand" href="../index.html">◈ PAPER ATLAS</a><nav><a href="../index.html#library">← 论文索引</a><a href="https://arxiv.org/abs/2505.06708">论文原文</a><a href="2505.06708-full.md">Markdown 全文</a></nav></header>
+<main class="wrap">
+<section class="article-head">
+<span class="overline">FULL SESSION TRANSCRIPT / PAPER READING</span>
+<h1>Gated Attention · 完整论文精读笔记</h1>
+<p class="lead">直接呈现本次对话中的完整中文精读正文，不再以精简版替代。保留章节、公式、具体实验数据及研究者与审稿人的分析。</p>
+<p class="source">arXiv:2505.06708 · 2025-05-10 · 中文精读 2026-11-10</p>
+<div class="note-nav"><a href="#section-1">Research Problem</a><a href="#section-2">Prior Work</a><a href="#section-3">Core Intuition</a><a href="#section-4">Method</a><a href="#section-5">Experimental Design</a><a href="#section-6">Results</a><a href="#section-7">Critical Evaluation</a><a href="#section-8">最终评价</a></div>
+</section>
+<article id="full-note" class="full-note"><p>正在读取完整精读笔记……</p></article>
+<noscript><p>浏览器未启用 JavaScript；请直接访问 <a href="2505.06708-full.md">完整 Markdown 笔记</a>。</p></noscript>
+</main>
+<footer class="wrap"><a href="../index.html#library">← 返回论文索引</a> · <a href="2505.06708-full.md">原始 Markdown 正文</a> · Paper Atlas</footer>
+<script>
+(async function(){
+ const el=document.getElementById('full-note');
+ try{
+   const response=await fetch('./2505.06708-full.md',{cache:'no-cache'});
+   if(!response.ok)throw Error('HTTP '+response.status);
+   const md=await response.text();
+   if(typeof marked==='undefined') {
+     el.textContent=md;
+     el.style.whiteSpace='pre-wrap';
+     return;
+   }
+   // Protect TeX contents from Markdown interpreting underscores and backslashes.
+   const tex=[];
+   const protectedMd=md.replace(/\$\$[\s\S]*?\$\$|\\\([\s\S]*?\\\)/g,m=>{
+     const i=tex.push(m)-1;
+     return '@@LATEXBLOCK'+i+'@@';
+   });
+   marked.setOptions({gfm:true,breaks:false});
+   let rendered=marked.parse(protectedMd);
+   rendered=rendered.replace(/@@LATEXBLOCK(\d+)@@/g,(_,n)=>tex[Number(n)]);
+   el.innerHTML=rendered;
+   let k=0;
+   el.querySelectorAll('h2').forEach(h=>h.id='section-'+(++k));
+   el.querySelectorAll('table').forEach(table=>{const wrap=document.createElement('div');wrap.className='table-scroll';table.parentNode.insertBefore(wrap,table);wrap.appendChild(table)});
+   if(window.MathJax?.typesetPromise){await MathJax.typesetPromise([el])}
+   else window.addEventListener('load',()=>window.MathJax?.typesetPromise?.([el]));
+   // Original session's educational interaction: a scalar gate and four dimensions.
+   const p=Array.from(el.querySelectorAll('p')).find(x=>x.textContent.startsWith('原笔记中的滑块控制门控值'));
+   if(p){
+     const d=document.createElement('div');d.className='demo';
+     d.innerHTML='<strong>交互：Attention 输出的逐元素缩放</strong><p>门控值 g = <output id="g-value">0.20</output></p><input id="g-range" type="range" min="0" max="1" step=".05" value=".2"><p>Attention 原始输出：[0.8, −0.4, 1.2, 0.6]</p><p>Gate 后输出：<output id="g-vector">[0.16, −0.08, 0.24, 0.12]</output></p>';
+     p.after(d);
+     const slider=d.querySelector('input');
+     const update=()=>{const g=+slider.value;d.querySelector('#g-value').textContent=g.toFixed(2);d.querySelector('#g-vector').textContent='['+[.8,-.4,1.2,.6].map(x=>(x*g).toFixed(2)).join(', ')+']'};
+     slider.addEventListener('input',update);update();
+   }
+   // Function comparison: illustrative, not real data.
+   const ns=Array.from(el.querySelectorAll('h4')).find(x=>x.textContent.includes('NS-Sigmoid'));
+   if(ns){
+     const d=document.createElement('div');d.className='demo';
+     d.innerHTML='<strong>交互：Sigmoid 与 NS-Sigmoid</strong><p>Logit x = <output id="logit-x">−4.0</output></p><input type="range" min="-6" max="6" step=".2" value="-4"><p>Sigmoid: <output id="s-val"></output> · NS-Sigmoid: <output id="ns-val"></output></p><small>函数数学示意，非论文的实际 Gate Score 分布。</small>';
+     ns.after(d);const slider=d.querySelector('input');
+     const update=()=>{const x=+slider.value,s=1/(1+Math.exp(-x));d.querySelector('#logit-x').textContent=x.toFixed(1);d.querySelector('#s-val').textContent=s.toFixed(3);d.querySelector('#ns-val').textContent=(.5+.5*s).toFixed(3)};
+     slider.addEventListener('input',update);update();
+   }
+ }catch(err){
+   el.innerHTML='<p>无法自动读取正文：'+String(err.message).replaceAll('<','&lt;')+'。<a href="2505.06708-full.md">点击查看完整 Markdown 文档</a>。</p>';
+ }
+})();
+</script></body></html>
