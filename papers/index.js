@@ -26,7 +26,7 @@ const PAPERS = [
     tags: ['Gated Attention', 'Attention Sink', 'Transformer', 'Interpretability'],
     description: '输出门控为何有效？解析低秩映射、输入依赖稀疏性、训练稳定性与长上下文外推，结合原文消融和审稿评价。',
     page: 'papers/2505.06708.html'
-  },
+  },
   {
     title: 'A Mechanistic Account of Attention Sinks in GPT-2',
     arxiv: '2604.14722',
