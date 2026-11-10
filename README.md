@@ -8,6 +8,8 @@ Once GitHub Pages is enabled and deployed: https://fenglin178.github.io/paper-at
 
 ## Reading library
 
+- [Efficient Streaming Language Models with Attention Sinks](papers/2309.17453.html) — [arXiv:2309.17453](https://arxiv.org/abs/2309.17453), ICLR 2024. Includes interactive Softmax and KV-cache demos.
+
 - [When Attention Sink Emerges in Language Models: An Empirical View](papers/2410.10781.html) — [arXiv:2410.10781](https://arxiv.org/abs/2410.10781), ICLR 2025.
 
 ## Adding papers
