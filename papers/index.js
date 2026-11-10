@@ -17,5 +17,14 @@ const PAPERS = [
     tags: ['Attention Sink', 'Transformer', 'Interpretability'],
     description: '通过受控预训练实验，研究 Attention Sink 如何形成、为什么聚集于特定 token，以及 Key Bias 和 Softmax 归一化的作用。',
     page: 'papers/2410.10781.html'
+  },
+  {
+    title: 'Gated Attention for Large Language Models: Non-linearity, Sparsity, and Attention-Sink-Free',
+    arxiv: '2505.06708',
+    venue: 'arXiv · v1 精读',
+    date: '2025-05-10',
+    tags: ['Gated Attention', 'Attention Sink', 'Transformer', 'Interpretability'],
+    description: '输出门控为何有效？解析低秩映射、输入依赖稀疏性、训练稳定性与长上下文外推，结合原文消融和审稿评价。',
+    page: 'papers/2505.06708.html'
   }
 ];

@@ -12,6 +12,8 @@ Once GitHub Pages is enabled and deployed: https://fenglin178.github.io/paper-at
 
 - [When Attention Sink Emerges in Language Models: An Empirical View](papers/2410.10781.html) — [arXiv:2410.10781](https://arxiv.org/abs/2410.10781), ICLR 2025.
 
+- [Gated Attention for Large Language Models: Non-linearity, Sparsity, and Attention-Sink-Free](papers/2505.06708.html) — [arXiv:2505.06708v1](https://arxiv.org/abs/2505.06708v1). Full Chinese research reading note with formulas, original ablations, mechanism analysis, reviewer assessment, and an interactive gate demo.
+
 ## Adding papers
 
 1. Add a standalone HTML article under `papers/` using its arXiv ID as filename.
