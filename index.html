@@ -6,7 +6,7 @@
 <section id="library"><div class="section-title"><div><span class="overline">THE LIBRARY</span><h2>论文索引</h2></div><span id="count" class="count"></span></div><div class="filters"><input id="search" type="search" placeholder="搜索标题、关键词、arXiv ID…" aria-label="搜索论文"><select id="tag" aria-label="论文分类"><option value="">全部主题</option></select></div><div id="papers" class="library"></div><p id="empty" hidden>没有匹配的论文，请调整搜索条件。</p></section>
 <section id="method" class="method"><span class="overline">READING FRAMEWORK</span><h2>研究者视角的四个问题</h2><div class="steps"><div><strong>01</strong><h3>Research Problem</h3><p>究竟解决什么问题？问题为什么重要？</p></div><div><strong>02</strong><h3>Prior Work</h3><p>已有研究做到了什么？本篇的增量在哪里？</p></div><div><strong>03</strong><h3>Core Intuition</h3><p>剥离细节后，真正的技术直觉是什么？</p></div><div><strong>04</strong><h3>Method & Review</h3><p>输入、处理、结果、实验证据及其局限。</p></div></div></section></main>
 <footer class="wrap">Paper Atlas · <a href="https://github.com/fenglin178/paper-atlas">Open source on GitHub</a> · 原文事实与审稿推断分别标注。</footer>
-<script src="papers/index.js"></script><script>
+<script src="papers/index.js?v=20261110-4"></script><script>
 const box=document.getElementById('papers'),search=document.getElementById('search'),tag=document.getElementById('tag');
 document.getElementById('count').textContent=PAPERS.length+' PAPERS';
 [...new Set(PAPERS.flatMap(p=>p.tags))].sort().forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;tag.appendChild(o)});
