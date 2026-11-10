@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A Mechanistic Account of Attention Sinks in GPT-2 · Paper Atlas</title>
+<meta name="description" content="ACL 2026 GPT-2 Attention Sinks 全文精读：研究背景、Source-Agnostic Shift 数学推导、EPE、因果干预与审稿评价。">
+<link rel="stylesheet" href="../style.css">
+<style>
+.full-note{max-width:920px;margin:0 auto;padding:22px 0 80px;line-height:1.85}
+.full-note h1{font-size:clamp(1.6rem,3.5vw,2.5rem);line-height:1.25}.full-note h2{margin:3.3rem 0 1.1rem;scroll-margin-top:90px}.full-note h3{margin:2.1rem 0 .7rem}.full-note h4{margin:1.7rem 0 .6rem}
+.full-note p{margin:1rem 0}.full-note table{width:100%;border-collapse:collapse;min-width:570px}.full-note th,.full-note td{padding:10px 13px;text-align:left;border-bottom:1px solid #8885}.full-note th{font-weight:700}
+.full-note .table-scroll{overflow-x:auto;margin:1.5rem 0}.full-note blockquote{border-left:3px solid #5a9ab5;padding:.3rem 1.2rem;margin:1.4rem 0;background:#7894ad12}.full-note li{margin:.45rem 0}
+.full-note .MathJax{overflow-x:auto;max-width:100%}.note-nav{display:flex;flex-wrap:wrap;gap:10px;margin:25px 0}.note-nav a{border:1px solid #8885;border-radius:30px;padding:6px 12px;font-size:.86rem}
+.demo{border:1px solid #8885;border-radius:14px;padding:16px 20px;margin:1.5rem 0}.demo label,.demo small{display:block;color:var(--muted,#888)}.demo input[type=range]{width:100%;accent-color:#269b87}.demo-tabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.demo-tabs button{border:1px solid #8886;border-radius:8px;padding:7px 12px;background:transparent;color:inherit;cursor:pointer}.demo-tabs button[aria-pressed=true]{background:#269b8730;border-color:#269b87}
+.demo-grid{display:grid;grid-template-columns:repeat(6, minmax(0,1fr));gap:3px;max-width:440px}.heat-cell{aspect-ratio:1;border-radius:3px}
+.demo-bars{display:grid;grid-template-columns:115px 1fr 56px;gap:8px;align-items:center;margin:7px 0}.demo-track{height:13px;background:#8883;border-radius:8px;overflow:hidden}.demo-fill{height:100%;background:#3284c0}.demo-caption{font-size:.83rem;color:var(--muted,#888);margin-top:12px}.circuit{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:18px 0}.circuit span{background:#269b8715;border:1px solid #269b8770;border-radius:10px;padding:12px}.circuit strong{font-size:1.2rem}
+</style>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]'],['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script>
+<script defer src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head><body>
+<header class="top"><a class="brand" href="../index.html">◈ PAPER ATLAS</a><nav><a href="../index.html#library">← 论文索引</a><a href="https://aclanthology.org/2026.acl-short.9/">ACL Anthology</a><a href="2026.acl-short.9-full.md">完整 Markdown</a></nav></header>
+<main class="wrap"><section class="article-head">
+<span class="overline">FULL READING NOTE / ACL 2026</span>
+<h1>A Mechanistic Account of Attention Sinks in GPT-2</h1>
+<p class="lead">GPT-2 中 Attention Sink 的参数级机制、EPE 的作用、数学推导与因果干预的证据边界。正文全文保留，包含全部十章。</p>
+<p class="source">Yuval Ran-Milo, Hila Ofek, Shahar Mendel · ACL 2026 Short Papers · 精读日期 2026-11-10</p>
+<div class="note-nav"><a href="#section-1">核心结论</a><a href="#section-2">Research Problem</a><a href="#section-3">Prior Work</a><a href="#section-4">Core Intuition</a><a href="#section-5">Method</a><a href="#section-6">Experimental Design</a><a href="#section-7">Results</a><a href="#section-8">Critical Evaluation</a><a href="#section-9">Follow-up</a><a href="#section-10">Summary</a></div>
+</section>
+<article id="full-note" class="full-note"><p>正在读取完整阅读笔记……</p></article>
+<noscript><p><a href="2026.acl-short.9-full.md">查看完整 Markdown 正文</a>。</p></noscript>
+</main>
+<footer class="wrap"><a href="../index.html#library">← 返回论文索引</a> · <a href="2026.acl-short.9-full.md">原始 Markdown 正文</a> · Paper Atlas</footer>
+<script>
+document.addEventListener('DOMContentLoaded',async()=>{
+ const el=document.getElementById('full-note');
+ try{
+  const r=await fetch('./2026.acl-short.9-full.md',{cache:'no-cache'});if(!r.ok)throw Error('HTTP '+r.status);let md=await r.text();
+  if(typeof marked==='undefined'){el.textContent=md;el.style.whiteSpace='pre-wrap';return;}
+  // Protect LaTeX delimiters and inner TeX backslashes from Markdown.
+  const tex=[];md=md.replace(/\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/g,m=>'@@TEX'+(tex.push(m)-1)+'@@');
+  marked.setOptions({gfm:true,breaks:false});let out=marked.parse(md);
+  out=out.replace(/@@TEX(\d+)@@/g,(_,n)=>tex[+n]);el.innerHTML=out;
+  let k=0;el.querySelectorAll('h2').forEach(h=>h.id='section-'+(++k));
+  el.querySelectorAll('table').forEach(t=>{let d=document.createElement('div');d.className='table-scroll';t.before(d);d.appendChild(t)});
+  const make=(name,markup,setup)=>{const p=[...el.querySelectorAll('p')].find(p=>p.textContent.trim()==='');let marker=[...el.childNodes].find(n=>n.nodeType===8&&n.nodeValue.trim()==='visualization: '+name);if(!marker)return;let d=document.createElement('div');d.className='demo';d.innerHTML=markup;marker.replaceWith(d);setup?.(d);};
+  make('circuit','<strong>机制示意：从位置编码到 Sink</strong><div class="circuit"><span>Position 1<br>p₁</span><strong>→</strong><span>First MLP<br>EPE₁</span><strong>→</strong><span>Wₖ Projection</span><strong>↘</strong><span>与 bQ 点积<br>异常大 Logit</span><strong>→</strong><span>Attention Sink</span></div><div class="demo-caption">根据原文 Section 3.1 绘制的机制示意，而非完整 Transformer 前向图。</div>');
+  make('heatmap','<strong>交互：语义注意力与 Attention Sink</strong><div class="demo-tabs"><button data-type="normal" aria-pressed="false">语义注意力</button><button data-type="sink" aria-pressed="true">Attention Sink</button></div><div class="demo-grid" id="heat"></div><div class="demo-caption">概念示意，非论文真实 Attention Map。行是 Query，列是 Key；上三角受到 Causal Mask 限制。</div>',d=>{
+   let type='sink',heat=d.querySelector('#heat');const draw=()=>{heat.replaceChildren();for(let i=0;i<6;i++)for(let j=0;j<6;j++){let x=document.createElement('div');x.className='heat-cell';x.title='Query '+(i+1)+' → Key '+(j+1);x.style.background=j>i?'#aaa3':type==='sink'?(j===0?'#1765c2':'#bad8f0'):(j===i?'#1765c2':'#bad8f0');heat.append(x)}};
+   d.querySelectorAll('button').forEach(b=>b.onclick=()=>{type=b.dataset.type;d.querySelectorAll('button').forEach(t=>t.setAttribute('aria-pressed',String(t===b)));draw()});draw();
+  });
+  make('softmax-slider','<strong>交互：Source-Agnostic Logit Shift</strong><p>第一个位置额外的 Logit Shift：<output id="shift-val">0.0</output></p><input type="range" min="0" max="6" step="0.5" value="0"><div class="softmax-bars"></div><div class="demo-caption">假设性 Logits：[Δ,1.4,0.7,1.1]，仅用于教学演示，非原文实验数据。</div>',d=>{
+   const slider=d.querySelector('input'),bars=d.querySelector('.softmax-bars');function draw(){let z=[+slider.value,1.4,.7,1.1],m=Math.max(...z),a=z.map(x=>Math.exp(x-m)),sum=a.reduce((x,y)=>x+y,0);d.querySelector('output').textContent=(+slider.value).toFixed(1);bars.replaceChildren();a.forEach((v,i)=>{let row=document.createElement('div');row.className='demo-bars';let label=document.createElement('span');label.textContent=['BOS','Token 2','Token 3','Token 4'][i];let track=document.createElement('div');track.className='demo-track';let fill=document.createElement('div');fill.className='demo-fill';fill.style.width=100*v/sum+'%';track.append(fill);let num=document.createElement('span');num.textContent=(100*v/sum).toFixed(1)+'%';row.append(label,track,num);bars.append(row)})}slider.oninput=draw;draw();
+  });
+  make('intervention-bars','<strong>论文 Table 1：各项干预后的 BOS Attention 保留比例</strong><div class="int-bars"></div><div class="demo-caption">论文报告的真实 % Base 数据；100% 表示与 Baseline 相同。</div>',d=>{const data=[['Baseline',100],['Remove First PE',3],['Swap EPE',6.2],['Remove All PE',17.5],['Nullify Query Bias',44.7],['Disable All MLPs',50.3],['Zero Top-3 Wk',65.2],['Swap Raw PE',99],['Nullify BOS Token',99.7],['Zero Random Wk',100]];const box=d.querySelector('.int-bars');for(const [n,v] of data){let row=document.createElement('div');row.className='demo-bars';let title=document.createElement('small');title.textContent=n;let track=document.createElement('div');track.className='demo-track';let fill=document.createElement('div');fill.className='demo-fill';fill.style.width=v+'%';track.append(fill);let num=document.createElement('small');num.textContent=v+'%';row.append(title,track,num);box.append(row)}});
+  make('training-hypothesis','<strong>待检验的训练动态假设</strong><div class="circuit"><span>EPE 异常维度出现</span><strong>⇢</strong><span>bQ / Wₖ 对齐</span><strong>⇢</strong><span>BOS Attention 升高</span></div><div class="demo-caption">箭头表示待研究的先后及因果关系，不代表论文已证实。</div>');
+  if(window.MathJax?.typesetPromise)await MathJax.typesetPromise([el]);else window.addEventListener('load',()=>window.MathJax?.typesetPromise?.([el]));
+ }catch(err){el.textContent='正文加载失败：'+err.message+'。请打开完整 Markdown 文件。';}
+});
+</script>
+</body></html>
